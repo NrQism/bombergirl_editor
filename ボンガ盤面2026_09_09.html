@@ -1,0 +1,2771 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ボンバーガール盤面エディター</title>
+  <style>
+    :root {
+      --bg-color: #f5f5f3;
+      --card-bg: #ffffff;
+      --text-color: #2c2c2a;
+      --sub-text-color: #888780;
+      --border-color: #d3d1c7;
+      --sub-panel-bg: #faf8f5;
+      --sub-panel-border: #e3dec9;
+      --board-bg: #ede9e0;
+      --grid-bg: #ddd9ce;
+      --btn-hover: #ede9e0;
+      --primary-color: #185fa5;
+      --cell-size: 28px;
+      --cell-gap: 2px;
+    }
+
+    body.dark-mode {
+      --bg-color: #1a1a1e;
+      --card-bg: #2a2a2e;
+      --text-color: #e1e1e6;
+      --sub-text-color: #a0a0a8;
+      --border-color: #44444a;
+      --sub-panel-bg: #222226;
+      --sub-panel-border: #44444a;
+      --board-bg: #333338;
+      --grid-bg: #202024;
+      --btn-hover: #3a3a40;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg-color);
+      padding: 1rem;
+      color: var(--text-color);
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .container {
+      max-width: 650px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border-radius: 8px;
+      padding: 1.25rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      position: relative;
+    }
+
+    /* 通知トースト */
+    #toast-message {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: rgba(220, 53, 69, 0.95);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: bold;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+      z-index: 2000;
+    }
+
+    #toast-message.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 500;
+      margin-bottom: 1.25rem;
+    }
+
+    /* ヘッダー(タイトル+モード切替、スティッキー固定) */
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 60;
+      background: var(--card-bg);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding-bottom: 10px;
+      margin-bottom: 1rem;
+      border-bottom: 0.5px solid var(--border-color);
+    }
+    .app-header h1 {
+      margin-bottom: 0;
+    }
+    .mode-select-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--sub-text-color);
+      font-weight: 500;
+    }
+    .mode-select {
+      padding: 5px 8px;
+      border-radius: 6px;
+      border: 0.5px solid var(--border-color);
+      background: var(--bg-color);
+      color: var(--text-color);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    #editor-content {
+      position: relative;
+    }
+
+    .mode-construction-overlay {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--card-bg);
+      z-index: 40;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      border-radius: 8px;
+      padding: 2rem 1rem;
+    }
+    .mode-construction-overlay.show {
+      display: flex;
+    }
+    .mode-construction-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text-color);
+    }
+    .mode-construction-sub {
+      font-size: 12px;
+      color: var(--sub-text-color);
+    }
+
+    .toolbar-section {
+      margin-bottom: 1rem;
+    }
+
+    .toolbar-label {
+      font-size: 13px;
+      color: var(--sub-text-color);
+      font-weight: 500;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .tool-btn {
+      position: relative;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 0.5px solid var(--border-color);
+      background: var(--bg-color);
+      color: var(--text-color);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+      opacity: 0.85;
+      overflow: hidden;
+      z-index: 1;
+    }
+
+    .tool-btn::after {
+      content: attr(data-emoji);
+      position: absolute;
+      right: -2px;
+      bottom: -4px;
+      font-size: 22px;
+      opacity: 0.25;
+      pointer-events: none;
+      z-index: -1;
+      line-height: 1;
+    }
+
+    .tool-btn:hover:not(.selected) {
+      background: var(--btn-hover);
+      opacity: 1;
+    }
+
+    .tool-btn.selected {
+      background: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+      opacity: 1;
+      margin-top: 10px;
+    }
+
+    .tool-btn.selected::after {
+      opacity: 0.4;
+    }
+
+    .tool-btn.selected::before {
+      content: "選択中";
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      background: var(--primary-color);
+      color: white;
+      padding: 1px 4px;
+      border-radius: 3px;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    /* ツールごとのヘルプ「？」アイコン */
+    .help-icon {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 15px;
+      height: 15px;
+      background: #888780;
+      color: #fff;
+      border-radius: 50%;
+      font-size: 10px;
+      line-height: 15px;
+      text-align: center;
+      font-weight: bold;
+      z-index: 5;
+      cursor: help;
+      user-select: none;
+    }
+    .tool-btn.selected .help-icon {
+      background: rgba(255,255,255,0.9);
+      color: var(--primary-color);
+    }
+    .help-tooltip {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: 170px;
+      background: #2c2c2a;
+      color: #fff;
+      padding: 6px 8px;
+      border-radius: 5px;
+      font-size: 11px;
+      line-height: 1.4;
+      font-weight: 400;
+      z-index: 50;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+      white-space: normal;
+      text-align: left;
+      pointer-events: none;
+    }
+    .help-tooltip.show {
+      display: block;
+    }
+
+    .sub-control-panel {
+      background: var(--sub-panel-bg);
+      border: 0.5px solid var(--sub-panel-border);
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-top: 8px;
+      display: none;
+    }
+
+    .sub-control-panel.active {
+      display: block;
+    }
+
+    .sub-control-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+    .sub-control-row:first-child {
+      margin-top: 0;
+    }
+
+    .sub-btn {
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 0.5px solid var(--border-color);
+      background: var(--card-bg);
+      color: var(--text-color);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .sub-btn.selected {
+      background: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
+
+    .counter-control {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--card-bg);
+      border: 0.5px solid var(--border-color);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 12px;
+    }
+    .counter-control button {
+      width: 18px;
+      height: 18px;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-color);
+      color: var(--text-color);
+      border: 0.5px solid var(--border-color);
+      border-radius: 3px;
+      cursor: pointer;
+    }
+
+    .checkbox-label {
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .color-swatch {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .color-swatch.selected {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 1px;
+    }
+
+    .board-container {
+      display: flex;
+      justify-content: center;
+      border: 0.5px solid var(--border-color);
+      border-radius: 6px;
+      padding: 6px;
+      background: var(--board-bg);
+      position: relative;
+      margin-bottom: 1rem;
+      overflow-x: auto;
+    }
+
+    #board {
+      display: grid;
+      grid-template-columns: repeat(15, var(--cell-size));
+      gap: var(--cell-gap);
+      background: var(--grid-bg);
+      padding: 4px;
+      user-select: none;
+      position: relative;
+    }
+
+    .cell {
+      width: var(--cell-size);
+      height: var(--cell-size);
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 500;
+      border: 1px solid transparent;
+      transition: border 0.1s ease;
+      position: relative;
+      box-sizing: border-box;
+      z-index: 1;
+    }
+
+    .cell.selected-source {
+      outline: 2px dashed #185fa5;
+      outline-offset: -2px;
+    }
+
+    .cell.drag-over {
+      background: #b5d4f4 !important;
+    }
+
+    .cell.character {
+      border: 2px solid #333333 !important;
+      box-shadow: inset 0 0 2px rgba(0,0,0,0.3);
+    }
+
+    .cell:hover {
+      border: 1px solid rgba(0,0,0,0.3);
+    }
+
+    /* ソフトブロックの枠線修正 */
+    .cell.soft-block-bordered {
+      border: 1px solid #444444 !important;
+    }
+
+    /* 施設・パーツのデザイン調整 */
+    .cell.base-center-ally, .cell.base-center-enemy {
+      border-radius: 50% !important;
+      border: 2px solid rgba(0,0,0,0.4) !important;
+      box-shadow: inset 0 0 4px rgba(0,0,0,0.2);
+    }
+
+    .cell.start-point-dark-ally, .cell.start-point-dark-enemy {
+      font-weight: bold;
+    }
+
+    /* スタート地点(5x5)全体を囲む単一枠のオーバーレイ */
+    .startpoint-group-overlay {
+      position: absolute;
+      border: 2px solid rgba(0, 0, 0, 0.45);
+      pointer-events: none;
+      z-index: 2;
+      box-sizing: border-box;
+      border-radius: 4px;
+    }
+
+    /* リスポーン地点の四角枠＋円形描画用オーバーレイ */
+    .respawn-group-overlay {
+      position: absolute;
+      border: 2px solid rgba(0, 0, 0, 0.6);
+      pointer-events: none;
+      z-index: 2;
+      box-sizing: border-box;
+      border-radius: 4px;
+    }
+
+    .respawn-group-overlay::after {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      border-radius: 50%;
+      border: 2px solid rgba(0, 0, 0, 0.5);
+      background: currentColor;
+      opacity: 0.25;
+      pointer-events: none;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    #clear-btn {
+      position: relative;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 0.5px solid #e0b3b3;
+      background: #fcebeb;
+      color: #a32d2d;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      overflow: hidden;
+      z-index: 1;
+    }
+
+    #clear-btn::after {
+      content: "🧹";
+      position: absolute;
+      right: 2px;
+      bottom: -2px;
+      font-size: 18px;
+      opacity: 0.35;
+      pointer-events: none;
+      z-index: 0;
+      line-height: 1;
+    }
+
+    #download-btn {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 0.5px solid #b5d4f4;
+      background: transparent;
+      color: #378add;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    #undo-btn, #redo-btn, #settings-btn, .template-btn {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 0.5px solid var(--border-color);
+      background: var(--bg-color);
+      color: var(--text-color);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    #undo-btn:disabled, #redo-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .info {
+      margin-top: 1rem;
+      padding: 10px;
+      background: var(--bg-color);
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--sub-text-color);
+      line-height: 1.5;
+    }
+
+    .memo-section {
+      margin-top: 1rem;
+    }
+
+    .memo-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #memo-toggle-btn {
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 0.5px solid var(--border-color);
+      background: var(--bg-color);
+      color: var(--text-color);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .memo-subtext {
+      font-size: 11px;
+      color: var(--sub-text-color);
+    }
+
+    #memo-textarea {
+      display: none;
+      width: 100%;
+      min-height: 80px;
+      margin-top: 6px;
+      padding: 8px;
+      border-radius: 6px;
+      border: 0.5px solid var(--border-color);
+      background: var(--card-bg);
+      color: var(--text-color);
+      font-family: inherit;
+      font-size: 12px;
+      resize: vertical;
+    }
+
+    #memo-textarea.open {
+      display: block;
+    }
+
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open {
+      display: flex;
+    }
+    .modal-content {
+      background: var(--card-bg);
+      color: var(--text-color);
+      border-radius: 8px;
+      padding: 1.25rem;
+      width: 90%;
+      max-width: 340px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    }
+    .modal-header {
+      font-weight: bold;
+      font-size: 14px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-close {
+      border: none;
+      background: none;
+      font-size: 16px;
+      cursor: pointer;
+      color: var(--sub-text-color);
+    }
+
+    /* スマホ幅向け:盤面(15マス)が画面内に収まるよう、セルサイズと余白を縮小する */
+    @media (max-width: 480px) {
+      body {
+        padding: 0.5rem;
+      }
+      .container {
+        padding: 0.75rem;
+      }
+      :root {
+        --cell-size: 19px;
+      }
+      .cell {
+        font-size: 8px;
+      }
+    }
+
+    @media (max-width: 360px) {
+      :root {
+        --cell-size: 17px;
+      }
+      .cell {
+        font-size: 7px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="toast-message">⚠️施設オブジェクトは重ねられません！</div>
+
+    <div class="app-header">
+      <h1>ボンバーガール盤面エディター</h1>
+      <div class="mode-select-wrapper">
+        <span class="mode-select-label">モード:</span>
+        <select id="app-mode-select" class="mode-select">
+          <option value="editor">エディター</option>
+          <option value="preview">プレビュー</option>
+          <option value="data">データ</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="editor-content">
+
+    <!-- 1. ツール選択 -->
+    <div class="toolbar-section">
+      <label class="toolbar-label">ツール選択</label>
+      <div class="toolbar" id="toolbar">
+        <button id="tool-empty" class="tool-btn selected" data-tool="empty" data-emoji="🧹">消しゴム</button>
+        <button id="tool-move" class="tool-btn" data-tool="move" data-emoji="👆">移動</button>
+        <button id="tool-block" class="tool-btn" data-tool="block" data-emoji="🧱">ブロック</button>
+        <button id="tool-bomb" class="tool-btn" data-tool="bomb" data-emoji="💣">ボム</button>
+        <button id="tool-mark" class="tool-btn" data-tool="mark" data-emoji="🎯">マーク</button>
+        <button id="tool-char" class="tool-btn" data-tool="char" data-emoji="👤">キャラクター</button>
+        <button id="tool-item" class="tool-btn" data-tool="item" data-emoji="🎁">アイテム</button>
+        <button id="tool-facility" class="tool-btn" data-tool="facility" data-emoji="🏰">施設</button>
+      </div>
+
+      <!-- ブロックサブパネル -->
+      <div id="block-sub-panel" class="sub-control-panel">
+        <div class="sub-control-row">
+          <span style="font-size: 12px; font-weight: 500; color: var(--sub-text-color);">種類:</span>
+          <button class="sub-btn selected" data-block-type="soft">ソフトブロック</button>
+          <button class="sub-btn" data-block-type="hard">ハードブロック</button>
+          <label class="checkbox-label" style="margin-left: 8px;">
+            <input type="checkbox" id="show-block-symbol-checkbox"> 記号(□)を表示
+          </label>
+        </div>
+        <!-- ソフトブロック拡張設定 -->
+        <div id="soft-block-options" class="sub-control-row" style="border-top: 0.5px solid var(--sub-panel-border); padding-top: 6px;">
+          <span style="font-size: 12px; font-weight: 500; color: var(--sub-text-color);">カラー:</span>
+          <span class="color-swatch selected" data-color="pink" style="background: #ffb6c1;" title="ピンク"></span>
+          <span class="color-swatch" data-color="red" style="background: #ff6b6b;" title="赤"></span>
+          <span class="color-swatch" data-color="yellow" style="background: #ffd166;" title="黄色"></span>
+          <span class="color-swatch" data-color="custom" style="background: linear-gradient(135deg, red, orange, yellow, green, blue);" title="カスタム"></span>
+          <input type="color" id="custom-block-color" value="#ba7517" style="display:none; width:22px; height:22px; padding:0; border:none; background:none; cursor:pointer;">
+          
+          <label class="checkbox-label" style="margin-left: 10px;">
+            <input type="checkbox" id="soft-block-border-checkbox"> 枠線をつける
+          </label>
+        </div>
+        <div class="sub-control-row" style="border-top: 0.5px solid var(--sub-panel-border); padding-top: 6px;">
+          <label class="checkbox-label"><input type="radio" name="block-mode" value="single" checked> 1マス</label>
+          <label class="checkbox-label"><input type="radio" name="block-mode" value="multi"> 直線</label>
+          <div class="counter-control" id="block-len-control">
+            <button id="block-len-minus">-</button>
+            <span id="block-len-val">3</span>
+            <button id="block-len-plus">+</button>
+            <span>マス</span>
+          </div>
+          <label class="checkbox-label" style="margin-left: 6px;"><input type="radio" name="block-orient" value="vertical" checked> 縦</label>
+          <label class="checkbox-label"><input type="radio" name="block-orient" value="horizontal"> 横</label>
+        </div>
+      </div>
+
+      <!-- ボムサブパネル -->
+      <div id="bomb-sub-panel" class="sub-control-panel">
+        <div class="sub-control-row">
+          <span style="font-size: 12px; font-weight: 500; color: var(--sub-text-color);">火力:</span>
+          <div id="bomb-range-buttons" style="display: flex; gap: 4px;">
+            <button class="sub-btn selected" data-range="1">1</button>
+            <button class="sub-btn" data-range="2">2</button>
+            <button class="sub-btn" data-range="3">3</button>
+            <button class="sub-btn" data-range="4">4</button>
+            <button class="sub-btn" data-range="5">5</button>
+            <button class="sub-btn" data-range="6">6</button>
+            <button class="sub-btn" data-range="7">7</button>
+          </div>
+        </div>
+        <div class="sub-control-row">
+          <span style="font-size: 12px; font-weight: 500; color: var(--sub-text-color);">陣営:</span>
+          <button class="sub-btn selected" id="bomb-side-btn">味方</button>
+        </div>
+        <div class="sub-control-row" style="margin-top: 6px;">
+          <label class="checkbox-label" title="中心のボムを置かずに爆風だけを広げます">
+            <input type="checkbox" id="blast-only-checkbox"> 爆風のみ
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="ignore-wall-checkbox"> 壁を無視
+          </label>
+          <label class="checkbox-label" title="選択した火力で自動的に爆風を描画します">
+            <input type="checkbox" id="auto-blast-checkbox" checked> 自動で爆風を描画
+          </label>
+          <label class="checkbox-label" title="爆風による既存ボムの上書き（誘爆）を防ぎます">
+            <input type="checkbox" id="disable-chain-checkbox"> 誘爆をオフにする
+          </label>
+        </div>
+        <div class="sub-control-row" style="border-top: 0.5px solid var(--sub-panel-border); padding-top: 4px; margin-top: 4px;">
+          <label class="checkbox-label" title="移動や消去時、ボムと爆風を一緒に紐付けて扱います">
+            <input type="checkbox" id="link-bomb-blast-checkbox" checked> ボムと爆風を紐付ける
+          </label>
+        </div>
+      </div>
+
+      <!-- マーク サブパネル -->
+      <div id="mark-sub-panel" class="sub-control-panel">
+        <div class="sub-control-row">
+          <span style="font-size: 12px; font-weight: 500; color: var(--sub-text-color);">種類/向き:</span>
+          <button class="sub-btn selected" data-mark-dir="up">上 (↑)</button>
+          <button class="sub-btn" data-mark-dir="down">下 (↓)</button>
+          <button class="sub-btn" data-mark-dir="left">左 (←)</button>
+          <button class="sub-btn" data-mark-dir="right">右 (→)</button>
+          <button class="sub-btn" data-mark-dir="question">？</button>
+          <button class="sub-btn" data-mark-dir="star">★</button>
+          <button class="sub-btn" data-mark-dir="decorate" id="mark-decorate-btn" title="オブジェクトの属性を保ったまま、マスの装飾を行えます。">マスの装飾</button>
+        </div>
+        <!-- マークカラー選択(矢印/記号用) -->
+        <div class="sub-control-row" id="mark-color-row" style="border-top: 0.5px solid var(--sub-panel-border); padding-top: 6px;">
+          <span style="font-size: 12px; font-weight: 500; color: var(--sub-text-color);">カラー:</span>
+          <span class="color-swatch selected" data-mark-color="#d32f2f" style="background: #d32f2f;" title="赤"></span>
+          <span class="color-swatch" data-mark-color="#1976d2" style="background: #1976d2;" title="青"></span>
+          <span class="color-swatch" data-mark-color="#388e3c" style="background: #388e3c;" title="緑"></span>
+          <span class="color-swatch" data-mark-color="#fbc02d" style="background: #fbc02d;" title="黄"></span>
+          <span class="color-swatch" data-mark-color="#8e24aa" style="background: #8e24aa;" title="紫"></span>
+          <span class="color-swatch" data-mark-color="#ffffff" style="background: #ffffff; border: 1px solid #ccc;" title="白"></span>
+          <span class="color-swatch" data-mark-color="#212121" style="background: #212121;" title="黒"></span>
+        </div>
+        <div class="sub-control-row" id="mark-len-row">
+          <span style="font-size: 12px; font-weight: 500; color: var(--sub-text-color);">長さ:</span>
+          <div class="counter-control">
+            <button id="mark-len-minus">-</button>
+            <span id="mark-len-val">1</span>
+            <button id="mark-len-plus">+</button>
+            <span>マス</span>
+          </div>
+        </div>
+
+        <!-- マスの装飾オプション(マスの装飾選択時のみ表示) -->
+        <div class="sub-control-row" id="deco-options-row" style="display: none; border-top: 0.5px solid var(--sub-panel-border); padding-top: 6px;">
+          <label class="checkbox-label">
+            <input type="checkbox" id="deco-bg-checkbox"> 背景塗りつぶし
+          </label>
+          <input type="color" id="deco-bg-color" value="#3498db" style="width: 22px; height: 22px; padding: 0; border: none; background: none; cursor: pointer;">
+          <label class="checkbox-label" style="margin-left: 10px;">
+            <input type="checkbox" id="deco-border-checkbox"> 枠
+          </label>
+          <select id="deco-border-style" class="sub-btn" style="padding: 3px 4px;">
+            <option value="solid">実線</option>
+            <option value="dashed">点線</option>
+          </select>
+        </div>
+        <div class="sub-control-row" id="deco-hint-row" style="display: none;">
+          <span class="memo-subtext">オブジェクトの属性を保ったまま、マスの装飾を行えます。チェックした項目のみ適用されます(複数選択可)。消しゴムで解除できます。</span>
+        </div>
+      </div>
+
+      <!-- キャラクター サブパネル -->
+      <div id="char-sub-panel" class="sub-control-panel">
+        <div class="sub-control-row" style="justify-content: space-between;">
+          <div>
+            <span style="font-size: 12px; font-weight: 500; color: var(--sub-text-color);">分類:</span>
+            <button class="sub-btn" data-char-cat="girl">ガール</button>
+            <button class="sub-btn" data-char-cat="supporter">サポーター</button>
+            <button class="sub-btn" data-char-cat="other">その他</button>
+          </div>
+          <button class="sub-btn" id="char-style-toggle-btn" style="background: var(--bg-color);">表示: 絵文字 ⇄ 文字</button>
+        </div>
+
+        <div id="char-role-row" class="sub-control-row" style="display: none; border-top: 0.5px solid var(--sub-panel-border); padding-top: 6px;">
+          <span style="font-size: 12px; font-weight: 500; color: var(--sub-text-color);">ロール:</span>
+          <button class="sub-btn" data-char-role="bomber">ボマー</button>
+          <button class="sub-btn" data-char-role="attacker">アタッカー</button>
+          <button class="sub-btn" data-char-role="shooter">シューター</button>
+          <button class="sub-btn" data-char-role="blocker">ブロッカー</button>
+        </div>
+
+        <div id="char-list-bomber" class="sub-control-row char-list-group" style="display: none; border-top: 0.5px solid var(--sub-panel-border); padding-top: 6px;">
+          <span style="font-size: 12px; font-weight: 500; color: var(--sub-text-color);">キャラ:</span>
+          <button class="sub-btn" data-char-type="generic" data-char-role-type="bomber">汎用</button>
+          <button class="sub-btn" data-char-name="シ">シロ</button>
+          <button class="sub-btn" data-char-name="ク">クロ</button>
+          <button class="sub-btn" data-char-name="藤">藤崎詩織</button>
+          <button class="sub-btn" data-char-name="グ">グレイ</button>
+          <button class="sub-btn" data-char-name="シ">シロン</button>
+          <button class="sub-btn" data-char-name="プ">プラチナ</button>
+          <button class="sub-btn" data-char-name="ダ">ダァク</button>
+          <button class="sub-btn" data-char-name="シ">シロヱ</button>
+        </div>
+
+        <div id="char-list-attacker" class="sub-control-row char-list-group" style="display: none; border-top: 0.5px solid var(--sub-panel-border); padding-top: 6px;">
+          <span style="font-size: 12px; font-weight: 500; color: var(--sub-text-color);">キャラ:</span>
+          <button class="sub-btn" data-char-type="generic" data-char-role-type="attacker">汎用</button>
+          <button class="sub-btn" data-char-name="オ">オレン</button>
+          <button class="sub-btn" data-char-name="ウ">ウルシ</button>
+          <button class="sub-btn" data-char-name="セ">セピア</button>
+          <button class="sub-btn" data-char-name="ア">アサギ</button>
+          <button class="sub-btn" data-char-name="テ">テッカ</button>
+          <button class="sub-btn" data-char-name="チ">チグサ</button>
+          <button class="sub-btn" data-char-name="チ">最愛チアモ</button>
+          <button class="sub-btn" data-char-name="ス">スイスイ</button>
+          <button class="sub-btn" data-char-name="お">おはぎ</button>
+        </div>
+
+        <div id="char-list-shooter" class="sub-control-row char-list-group" style="display: none; border-top: 0.5px solid var(--sub-panel-border); padding-top: 6px;">
+          <span style="font-size: 12px; font-weight: 500; color: var(--sub-text-color);">キャラ:</span>
+          <button class="sub-btn" data-char-type="generic" data-char-role-type="shooter">汎用</button>
+          <button class="sub-btn" data-char-name="エ">エメラ</button>
+          <button class="sub-btn" data-char-name="パ">パプル</button>
+          <button class="sub-btn" data-char-name="ツ">ツガル</button>
+          <button class="sub-btn" data-char-name="パ">パステル</button>
+          <button class="sub-btn" data-char-name="オ">オリーヴ</button>
+          <button class="sub-btn" data-char-name="シ">シルヴァ</button>
+          <button class="sub-btn" data-char-name="ブ">ブラス</button>
+          <button class="sub-btn" data-char-name="ダ">ミツモトダイア</button>
+        </div>
+
+        <div id="char-list-blocker" class="sub-control-row char-list-group" style="display: none; border-top: 0.5px solid var(--sub-panel-border); padding-top: 6px;">
+          <span style="font-size: 12px; font-weight: 500; color: var(--sub-text-color);">キャラ:</span>
+          <button class="sub-btn" data-char-type="generic" data-char-role-type="blocker">汎用</button>
+          <button class="sub-btn" data-char-name="モ">モモコ</button>
+          <button class="sub-btn" data-char-name="ア">アクア</button>
+          <button class="sub-btn" data-char-name="グ">グリムアロエ</button>
+          <button class="sub-btn" data-char-name="パ">パイン</button>
+          <button class="sub-btn" data-char-name="プ">プルーン</button>
+          <button class="sub-btn" data-char-name="メ">メロン</button>
+          <button class="sub-btn" data-char-name="ブ">ブルーベリー</button>
+          <button class="sub-btn" data-char-name="ヒ">ヒイロ</button>
+          <button class="sub-btn" data-char-name="ロ">ロゼ</button>
+        </div>
+      </div>
+
+      <!-- 施設 サブパネル -->
+      <div id="facility-sub-panel" class="sub-control-panel">
+        <div class="sub-control-row">
+          <span style="font-size: 12px; font-weight: 500; color: var(--sub-text-color);">1行目:</span>
+          <button class="sub-btn selected" data-facility="base">ベース</button>
+          <button class="sub-btn" data-facility="tower">タワー</button>
+        </div>
+        <div class="sub-control-row">
+          <span style="font-size: 12px; font-weight: 500; color: var(--sub-text-color);">2行目:</span>
+          <button class="sub-btn" data-facility="big-gate">大ゲート</button>
+          <button class="sub-btn" data-facility="gate">ゲート</button>
+        </div>
+        <div class="sub-control-row">
+          <span style="font-size: 12px; font-weight: 500; color: var(--sub-text-color);">3行目:</span>
+          <button class="sub-btn" data-facility="start-point">スタート地点</button>
+          <button class="sub-btn" data-facility="respawn">リスポーン地点</button>
+          <label class="checkbox-label" style="margin-left: 6px;">
+            <input type="checkbox" id="auto-fill-checkbox" checked> リス埋め自動処理
+          </label>
+        </div>
+        <div class="sub-control-row" style="margin-top: 6px; border-top: 0.5px solid var(--sub-panel-border); padding-top: 4px;">
+          <span style="font-size: 12px; font-weight: 500; color: var(--sub-text-color);">陣営:</span>
+          <button class="sub-btn selected" data-side="ally" id="facility-side-btn">味方</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 盤面表示 -->
+    <div class="board-container">
+      <div id="board"></div>
+    </div>
+
+    <!-- 3. 各種ボタン -->
+    <div class="button-group">
+      <button id="undo-btn">↶ Undo</button>
+      <button id="redo-btn">↷ Redo</button>
+      <button id="clear-btn">リセット</button>
+      <button id="download-btn">ダウンロード</button>
+      <button id="settings-btn">⚙ 環境設定</button>
+    </div>
+
+    <div class="toolbar-section">
+      <label class="toolbar-label">テンプレート</label>
+      <div class="toolbar" id="templates">
+        <button id="template-base" class="template-btn">ベース</button>
+      </div>
+    </div>
+
+    <!-- 備考セクション -->
+    <div class="memo-section">
+      <div class="memo-header">
+        <button id="memo-toggle-btn">備考</button>
+        <span class="memo-subtext">クリック(タップ)して開閉</span>
+      </div>
+      <textarea id="memo-textarea" placeholder="ここに備考を入力..."></textarea>
+    </div>
+
+    <div class="info">
+      ブロック選択時はスペースキーで縦横切替。Eキー保持で消しゴムモード。右クリックで消去。<br>
+      ※「移動」ツールでマスを2回タップして移動可能！環境設定でドラッグ移動も有効化できます。
+    </div>
+
+      <!-- 未実装モード用の工事中オーバーレイ(この#editor-content範囲だけを覆う) -->
+      <div id="mode-construction-overlay" class="mode-construction-overlay">
+        <div class="mode-construction-text">
+          <div class="mode-construction-title">🚧 工事中！近日アップデート予定！</div>
+          <div class="mode-construction-sub">このモードは現在準備中です。「エディター」に戻ると編集を再開できます。</div>
+        </div>
+      </div>
+
+    </div><!-- /#editor-content -->
+  </div>
+
+  <!-- 環境設定モーダル -->
+  <div class="modal-overlay" id="settings-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span>環境設定</span>
+        <button class="modal-close" id="modal-close-btn">×</button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <label class="checkbox-label">
+          <input type="checkbox" id="dark-mode-checkbox"> ダークモード
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="drag-draw-checkbox"> ドラッグで連続描画
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="drag-move-checkbox"> ドラッグで移動※PC向け
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- 重なり上書き確認モーダル -->
+  <div class="modal-overlay" id="overlap-confirm-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span>上書きの確認</span>
+      </div>
+      <div id="overlap-confirm-message" style="font-size: 13px; line-height: 1.6; margin-bottom: 14px;"></div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button id="overlap-cancel-btn" class="sub-btn selected" style="min-width: 84px;">キャンセル</button>
+        <button id="overlap-overwrite-btn" class="sub-btn" style="min-width: 84px; opacity: 0.65;">上書きして設置</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const COLS = 15;
+    const ROWS = 15;
+    let currentTool = 'empty';
+    let defaultBombRange = 1;
+    let bombSide = 'ally';
+    let isMouseDown = false;
+    let isEKeyPressed = false;
+
+    let moveSourceIdx = null;
+
+    let selectedBlockType = 'soft';
+    let selectedBlockColor = 'pink';
+    let customBlockHex = '#ba7517';
+    let markDirection = 'up';
+    let markLength = 1;
+    let selectedMarkColor = '#d32f2f';
+
+    let selectedCharCat = null;
+    let selectedCharRole = null;
+    let isGenericChar = false;
+    let selectedCharText = '人';
+    let useTextSymbolMode = false;
+
+    let blockMode = 'single';
+    let blockLength = 3;
+    let blockOrientation = 'vertical';
+
+    let facilitySide = 'ally';
+    let facilityTypeChoice = 'base';
+
+    const genericRoleConfig = {
+      bomber:   { emoji: '💣', text: 'B',  bg: '#185fa5' },
+      attacker: { emoji: '⚔', text: 'A',  bg: '#e67e22' },
+      shooter:  { emoji: '🔫', text: 'S',  bg: '#27ae60' },
+      blocker:  { emoji: '🛡', text: 'Bk', bg: '#e84393' }
+    };
+
+    const defaultToastMessage = '⚠️施設オブジェクトは重ねられません！';
+    function showToast(message) {
+      const toast = document.getElementById('toast-message');
+      toast.textContent = message || defaultToastMessage;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 1800);
+    }
+
+    function createEmptyBoard() {
+      return Array(ROWS * COLS).fill(null).map(() => ({ type: 'empty', range: 1, baseType: null, customText: '' }));
+    }
+
+    function loadBoard() {
+      let loaded = JSON.parse(localStorage.getItem('bombergirl-board'));
+      if (!loaded) return createEmptyBoard();
+      return loaded.map(cell => {
+        if (typeof cell === 'string') return { type: cell, range: 1, baseType: null, customText: '' };
+        return {
+          type: cell.type || 'empty',
+          range: cell.range || 1,
+          baseType: cell.baseType || null,
+          customText: cell.customText || '',
+          color: cell.color || null,
+          isGeneric: cell.isGeneric || false,
+          charRole: cell.charRole || null,
+          rotateState: cell.rotateState || 0,
+          groupId: cell.groupId || null,
+          decoBg: cell.decoBg || null,
+          decoBorder: cell.decoBorder || null,
+          facilityKind: cell.facilityKind || null,
+          facilitySuffix: cell.facilitySuffix || null,
+          anchorR: (typeof cell.anchorR === 'number') ? cell.anchorR : null,
+          anchorC: (typeof cell.anchorC === 'number') ? cell.anchorC : null
+        };
+      });
+    }
+
+    let board = loadBoard();
+    let history = [JSON.parse(JSON.stringify(board))];
+    let historyIndex = 0;
+
+    const toolNames = {
+      empty: '',
+      wall: '■',
+      block: '□',
+      'bomb-ally': '●',
+      'bomb-enemy': '●',
+      'blast-ally': '※',
+      'blast-enemy': '※',
+      item: 'A',
+      'facility-center-ally': '',
+      'facility-center-enemy': '',
+      'facility-side-ally': '',
+      'facility-side-enemy': '',
+      'gate-center-ally': 'G',
+      'gate-center-enemy': 'G',
+      'gate-side-ally': '◻︎',
+      'gate-side-enemy': '◻︎',
+      'gate-extradark-ally': '◽️',
+      'gate-extradark-enemy': '◽️',
+      'base-center-ally': 'B',
+      'base-center-enemy': 'B',
+      'base-corner': '',
+      'tower-ally': 'T',
+      'tower-enemy': 'T',
+      'start-point-ally': '',
+      'start-point-enemy': '',
+      'start-point-dark-ally': '',
+      'start-point-dark-enemy': '',
+      'arrow-mark': '',
+      'character': ''
+    };
+
+    const colors = {
+      empty: '#f5f5f3',
+      wall: '#444441',
+      block: '#ffb6c1',
+      'bomb-ally': '#185fa5',
+      'bomb-enemy': '#a32d2d',
+      'blast-ally': '#85d6ff',
+      'blast-enemy': '#ffb3b3',
+      item: '#ef9f27',
+
+      'facility-center-ally': '#85d6ff',
+      'facility-side-ally': '#85d6ff',
+      'gate-center-ally': '#85d6ff',
+      'gate-side-ally': '#185fa5',
+      'gate-extradark-ally': '#0c3866',
+      'base-center-ally': '#185fa5',
+      'tower-ally': '#185fa5',
+      'start-point-ally': '#85d6ff',
+      'start-point-dark-ally': '#378add',
+
+      'facility-center-enemy': '#ffb3b3',
+      'facility-side-enemy': '#ffb3b3',
+      'gate-center-enemy': '#ffb3b3',
+      'gate-side-enemy': '#a32d2d',
+      'gate-extradark-enemy': '#6b1616',
+      'base-center-enemy': '#a32d2d',
+      'tower-enemy': '#a32d2d',
+      'start-point-enemy': '#ffb3b3',
+      'start-point-dark-enemy': '#dd3737',
+
+      'base-corner': '#222222',
+      'arrow-mark': '#e6f4ea',
+      'character': '#e0e0e0'
+    };
+
+    function hexToRgba(hex, alpha) {
+      let h = hex.replace('#', '');
+      if (h.length === 3) h = h.split('').map(ch => ch + ch).join('');
+      const r = parseInt(h.substring(0, 2), 16);
+      const g = parseInt(h.substring(2, 4), 16);
+      const b = parseInt(h.substring(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function getSoftBlockBgColor() {
+      if (selectedBlockColor === 'pink') return '#ffb6c1';
+      if (selectedBlockColor === 'red') return '#ff6b6b';
+      if (selectedBlockColor === 'yellow') return '#ffd166';
+      if (selectedBlockColor === 'custom') return customBlockHex;
+      return '#ffb6c1';
+    }
+
+    function isFacilityType(t) {
+      if (!t) return false;
+      return t.startsWith('facility-') || t.startsWith('gate-') || t.startsWith('base-') || t.startsWith('tower-') || t.startsWith('start-point-');
+    }
+
+    // ---- 重なり判定ロジック ----
+    // 施設の種類ごとに、非施設オブジェクトとの重なり可否を定義する。
+    // 'allow' = 制限なく重ねられる(ダイアログなし) / 'deny' = 重ねられない(上書き確認ダイアログの対象)
+    const FACILITY_OVERLAP_RULES = {
+      'tower':          { bomb: 'deny',  char: 'deny',  item: 'deny',  mark: 'allow', softBlock: 'deny',  hardBlock: 'deny' },
+      'gate-center':    { bomb: 'allow', char: 'allow', item: 'allow', mark: 'allow', softBlock: 'allow', hardBlock: 'allow' },
+      'gate-side':      { bomb: 'deny',  char: 'deny',  item: 'deny',  mark: 'allow', softBlock: 'deny',  hardBlock: 'deny' },
+      'base-center':    { bomb: 'deny',  char: 'deny',  item: 'deny',  mark: 'allow', softBlock: 'deny',  hardBlock: 'deny' },
+      'base-corner':    { bomb: 'deny',  char: 'deny',  item: 'deny',  mark: 'allow', softBlock: 'deny',  hardBlock: 'deny' },
+      'start-point':    { bomb: 'allow', char: 'allow', item: 'deny',  mark: 'allow', softBlock: 'deny',  hardBlock: 'deny' },
+      'respawn-center': { bomb: 'allow', char: 'allow', item: 'allow', mark: 'allow', softBlock: 'allow', hardBlock: 'deny' },
+      'respawn-side':   { bomb: 'allow', char: 'allow', item: 'allow', mark: 'allow', softBlock: 'allow', hardBlock: 'deny' }
+    };
+
+    // マークと施設が重なった際、表示上どちらのシンボル・色を優先するか
+    // 'facility' = 施設側(T/G/大ゲート等)を優先 / 'mark' = マーク側を優先
+    const MARK_DISPLAY_WINNER = {
+      'tower': 'facility',
+      'gate-center': 'facility',
+      'gate-side': 'facility',
+      'base-center': 'mark',
+      'base-corner': 'mark',
+      'start-point': 'mark',
+      'respawn-center': 'mark',
+      'respawn-side': 'mark'
+    };
+
+    // baseTypeの文字列から、重なり判定に使う「施設の種類」を判定する
+    function getFacilityBaseKind(baseType) {
+      if (!baseType) return null;
+      if (baseType.startsWith('tower')) return 'tower';
+      if (baseType.startsWith('gate-center')) return 'gate-center';
+      if (baseType.startsWith('gate-side')) return 'gate-side';
+      if (baseType.startsWith('base-corner')) return 'base-corner';
+      if (baseType.startsWith('base-center')) return 'base-center';
+      if (baseType.startsWith('start-point')) return 'start-point';
+      if (baseType.startsWith('facility-center')) return 'respawn-center';
+      if (baseType.startsWith('facility-side')) return 'respawn-side';
+      return null;
+    }
+
+    // 同じgroupIdを持つセル数から、ゲート(3マス)か大ゲート(5マス)かを見分ける
+    // (ゲートと大ゲートはbaseTypeの命名が同じ'gate-center'/'gate-side'のため)
+    function isSmallGateGroup(groupId) {
+      if (!groupId) return false;
+      return board.filter(c => c.groupId === groupId).length === 3;
+    }
+
+    // 施設の種類(kind)と、重ねようとしているオブジェクトの役割(role)から重なり可否を返す
+    // role: 'bomb' | 'char' | 'item' | 'mark' | 'softBlock' | 'hardBlock'
+    function getOverlapPolicy(kind, role, isSmallGate) {
+      const rule = FACILITY_OVERLAP_RULES[kind];
+      if (!rule) return 'allow';
+      let policy = rule[role];
+      // ハードブロックの例外は「ゲート(3マス)」のみ。大ゲートの内側マスは対象外。
+      if (kind === 'gate-center' && role === 'hardBlock' && !isSmallGate) {
+        policy = 'deny';
+      }
+      return policy;
+    }
+
+    // 既存セルの中身から、重なり判定用の「役割」を判定する。該当なしはnull。
+    function getObjectRole(cellData) {
+      const t = cellData.type;
+      if (t === 'bomb-ally' || t === 'bomb-enemy') return 'bomb';
+      if (t === 'character') return 'char';
+      if (t === 'item') return 'item';
+      if (t === 'arrow-mark') return 'mark';
+      if (t === 'block') return 'softBlock';
+      if (t === 'wall') return 'hardBlock';
+      return null;
+    }
+
+    // 上書き確認ダイアログが「上書きして設置」で確定した際に実行する処理を保持する
+    let pendingOverlapAction = null;
+    let dragSkippedCount = 0;
+
+    function showOverlapConfirm(message) {
+      const modal = document.getElementById('overlap-confirm-modal');
+      const msgEl = document.getElementById('overlap-confirm-message');
+      msgEl.textContent = message || 'このマスにはすでに別のオブジェクトが置かれています。上書きして設置しますか？(上書き後もUndoで元に戻せます)';
+      modal.classList.add('open');
+      const cancelBtn = document.getElementById('overlap-cancel-btn');
+      // 誤操作防止のため、初期フォーカスは常に「キャンセル」側に置く
+      setTimeout(() => cancelBtn.focus(), 0);
+    }
+
+    function closeOverlapConfirm() {
+      document.getElementById('overlap-confirm-modal').classList.remove('open');
+      pendingOverlapAction = null;
+    }
+
+    function moveCellData(srcIdx, destIdx) {
+      if (srcIdx === destIdx) return false;
+      
+      const linkBlast = document.getElementById('link-bomb-blast-checkbox').checked;
+      const srcCell = board[srcIdx];
+
+      // 1. ボム＋爆風の連動移動処理
+      if (linkBlast && (srcCell.type === 'bomb-ally' || srcCell.type === 'bomb-enemy')) {
+        const srcR = Math.floor(srcIdx / COLS);
+        const srcC = srcIdx % COLS;
+        const destR = Math.floor(destIdx / COLS);
+        const destC = destIdx % COLS;
+        const dr = destR - srcR;
+        const dc = destC - srcC;
+
+        const blastType = srcCell.type === 'bomb-ally' ? 'blast-ally' : 'blast-enemy';
+        let groupIndices = [srcIdx];
+
+        board.forEach((c, i) => {
+          if (c.type === blastType) {
+            groupIndices.push(i);
+          }
+        });
+
+        for (let idx of groupIndices) {
+          let r = Math.floor(idx / COLS) + dr;
+          let c = (idx % COLS) + dc;
+          if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return false;
+        }
+
+        let newBoard = JSON.parse(JSON.stringify(board));
+        groupIndices.forEach(idx => {
+          const bBase = newBoard[idx].baseType;
+          if (bBase) newBoard[idx] = { type: bBase, range: 1, baseType: bBase, customText: '' };
+          else newBoard[idx] = { type: 'empty', range: 1, baseType: null, customText: '' };
+        });
+
+        groupIndices.forEach(idx => {
+          let r = Math.floor(idx / COLS) + dr;
+          let c = (idx % COLS) + dc;
+          let targetIdx = r * COLS + c;
+          let oldData = JSON.parse(JSON.stringify(board[idx]));
+          let destBase = board[targetIdx].baseType;
+          newBoard[targetIdx] = { ...oldData, baseType: destBase };
+        });
+
+        board = newBoard;
+        return true;
+      }
+
+      // 2. 施設オブジェクト構造移動処理 (重複チェック付き)
+      if (srcCell.groupId || isFacilityType(srcCell.type)) {
+        let groupIndices = [];
+        if (srcCell.groupId) {
+          board.forEach((c, i) => {
+            if (c.groupId === srcCell.groupId) groupIndices.push(i);
+          });
+        } else {
+          groupIndices = [srcIdx];
+        }
+
+        const srcR = Math.floor(srcIdx / COLS);
+        const srcC = srcIdx % COLS;
+        const destR = Math.floor(destIdx / COLS);
+        const destC = destIdx % COLS;
+        const dr = destR - srcR;
+        const dc = destC - srcC;
+
+        // 基準点(配置時の位置)を記録した施設は、盤面の端で見切れていたマスも
+        // 移動先で収まるようになれば元の形に復元する
+        if (srcCell.facilityKind && typeof srcCell.anchorR === 'number' && typeof srcCell.anchorC === 'number') {
+          const newAnchorR = srcCell.anchorR + dr;
+          const newAnchorC = srcCell.anchorC + dc;
+
+          let fullSpecs = getFacilityCellSpecs(srcCell.facilityKind, newAnchorR, newAnchorC, srcCell.facilitySuffix);
+          fullSpecs = fullSpecs.filter(s => s.r >= 0 && s.r < ROWS && s.c >= 0 && s.c < COLS);
+          fullSpecs.forEach(s => { s.idx = s.r * COLS + s.c; });
+
+          // 移動先インデックス → 移動元インデックスの対応表(元々存在していたマスかどうかの判定用)
+          const shiftedFromMap = {};
+          groupIndices.forEach(idx => {
+            const r = Math.floor(idx / COLS) + dr;
+            const c = (idx % COLS) + dc;
+            if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
+              shiftedFromMap[r * COLS + c] = idx;
+            }
+          });
+
+          // 自分以外の既存施設に被る場合は重ね置き防止
+          for (const s of fullSpecs) {
+            if (groupIndices.includes(s.idx)) continue;
+            if (getFacilityBaseKind(board[s.idx].baseType)) {
+              showToast();
+              return false;
+            }
+          }
+
+          let newBoard = JSON.parse(JSON.stringify(board));
+          groupIndices.forEach(idx => {
+            newBoard[idx] = { type: 'empty', range: 1, baseType: null, customText: '' };
+          });
+
+          fullSpecs.forEach(s => {
+            const fromIdx = shiftedFromMap[s.idx];
+            if (typeof fromIdx === 'number') {
+              // 元々存在していたマス:重ねられているオブジェクト等の内容を保ったまま、基準点だけ更新する
+              let oldData = JSON.parse(JSON.stringify(board[fromIdx]));
+              newBoard[s.idx] = { ...oldData, anchorR: newAnchorR, anchorC: newAnchorC };
+            } else {
+              // 盤面の端で見切れて消えていたが、今回収まるようになったマス:施設セルとして復元する
+              newBoard[s.idx] = {
+                type: s.typeName, range: 1, baseType: s.typeName, customText: s.customText,
+                groupId: srcCell.groupId, facilityKind: srcCell.facilityKind, facilitySuffix: srcCell.facilitySuffix,
+                anchorR: newAnchorR, anchorC: newAnchorC
+              };
+            }
+          });
+
+          board = newBoard;
+          return true;
+        }
+
+        for (let idx of groupIndices) {
+          let r = Math.floor(idx / COLS) + dr;
+          let c = (idx % COLS) + dc;
+          if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return false;
+          let targetIdx = r * COLS + c;
+          // 自分以外の既存施設に被る場合は重ね置き防止
+          if (!groupIndices.includes(targetIdx) && isFacilityType(board[targetIdx].type)) {
+            showToast();
+            return false;
+          }
+        }
+
+        let newBoard = JSON.parse(JSON.stringify(board));
+        groupIndices.forEach(idx => {
+          newBoard[idx] = { type: 'empty', range: 1, baseType: null, customText: '' };
+        });
+
+        groupIndices.forEach(idx => {
+          let r = Math.floor(idx / COLS) + dr;
+          let c = (idx % COLS) + dc;
+          let targetIdx = r * COLS + c;
+          let oldData = JSON.parse(JSON.stringify(board[idx]));
+          let destBase = board[targetIdx].baseType;
+          newBoard[targetIdx] = { ...oldData, baseType: destBase };
+        });
+
+        board = newBoard;
+        return true;
+      }
+
+      // 3. 単一マスの移動
+      const srcData = JSON.parse(JSON.stringify(board[srcIdx]));
+      const destBase = board[destIdx].baseType;
+
+      board[destIdx] = { ...srcData, baseType: destBase };
+
+      if (board[srcIdx].baseType) {
+        board[srcIdx] = { type: board[srcIdx].baseType, range: 1, baseType: board[srcIdx].baseType, customText: '' };
+      } else {
+        board[srcIdx] = { type: 'empty', range: 1, baseType: null, customText: '' };
+      }
+      return true;
+    }
+
+    function saveHistory() {
+      history = history.slice(0, historyIndex + 1);
+      history.push(JSON.parse(JSON.stringify(board)));
+      historyIndex = history.length - 1;
+      updateHistoryButtons();
+    }
+
+    function undo() {
+      if (historyIndex > 0) {
+        historyIndex--;
+        board = JSON.parse(JSON.stringify(history[historyIndex]));
+        localStorage.setItem('bombergirl-board', JSON.stringify(board));
+        render();
+      }
+    }
+
+    function redo() {
+      if (historyIndex < history.length - 1) {
+        historyIndex++;
+        board = JSON.parse(JSON.stringify(history[historyIndex]));
+        localStorage.setItem('bombergirl-board', JSON.stringify(board));
+        render();
+      }
+    }
+
+    function updateHistoryButtons() {
+      document.getElementById('undo-btn').disabled = historyIndex === 0;
+      document.getElementById('redo-btn').disabled = historyIndex === history.length - 1;
+    }
+
+    function getRespawnState(r, c, currentBoard) {
+      const centerIdx = r * COLS + c;
+      const centerCell = currentBoard[centerIdx];
+      const effectiveType = centerCell.baseType || centerCell.type;
+
+      if (effectiveType !== 'facility-center-ally' && effectiveType !== 'facility-center-enemy') {
+        return { isRespawn: false };
+      }
+
+      let hasBlock = false;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const subR = r + dr;
+          const subC = c + dc;
+          if (subR < 0 || subR >= ROWS || subC < 0 || subC >= COLS) continue;
+          const subCell = currentBoard[subR * COLS + subC];
+          if (subCell && subCell.type === 'block') {
+            hasBlock = true;
+            break;
+          }
+        }
+        if (hasBlock) break;
+      }
+
+      return { isRespawn: true, hasBlock };
+    }
+
+    function checkCellBuriedStatus(targetIdx, currentBoard) {
+      const targetRow = Math.floor(targetIdx / COLS);
+      const targetCol = targetIdx % COLS;
+
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const rr = targetRow + dr;
+          const cc = targetCol + dc;
+          if (rr < 0 || rr >= ROWS || cc < 0 || cc >= COLS) continue;
+          const state = getRespawnState(rr, cc, currentBoard);
+          if (state.isRespawn && state.hasBlock) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function applyBlastFrom(centerIndex, firepower, side, blastOnlyCenter) {
+      const row = Math.floor(centerIndex / COLS);
+      const col = centerIndex % COLS;
+      const ignoreWall = document.getElementById('ignore-wall-checkbox').checked;
+      const disableChain = document.getElementById('disable-chain-checkbox').checked;
+      const blastType = side === 'ally' ? 'blast-ally' : 'blast-enemy';
+
+      if (blastOnlyCenter) {
+        board[centerIndex] = { type: blastType, range: 1, baseType: board[centerIndex].baseType, customText: '' };
+      }
+
+      const directions = [
+        { dr: -1, dc: 0 },
+        { dr: 1, dc: 0 },
+        { dr: 0, dc: -1 },
+        { dr: 0, dc: 1 }
+      ];
+
+      directions.forEach(dir => {
+        for (let d = 1; d <= firepower; d++) {
+          const r = row + dir.dr * d;
+          const c = col + dir.dc * d;
+
+          if (r < 0 || r >= ROWS || c < 0 || c >= COLS) break;
+
+          const idx = r * COLS + c;
+          const cell = board[idx];
+
+          if (!ignoreWall && cell.type === 'wall') break;
+
+          if (disableChain && (cell.type === 'bomb-ally' || cell.type === 'bomb-enemy')) {
+            continue;
+          }
+
+          if (cell.type === 'block') {
+            board[idx] = { type: blastType, range: 1, baseType: cell.baseType, customText: '' };
+            if (!ignoreWall) break;
+            continue;
+          }
+
+          board[idx].type = blastType;
+          board[idx].customText = '';
+        }
+      });
+    }
+
+    function computeMarkTargets(centerIndex) {
+      const row = Math.floor(centerIndex / COLS);
+      const col = centerIndex % COLS;
+
+      const dirMap = {
+        up: { dr: -1, dc: 0, arrow: '↑' },
+        down: { dr: 1, dc: 0, arrow: '↓' },
+        left: { dr: 0, dc: -1, arrow: '←' },
+        right: { dr: 0, dc: 1, arrow: '→' },
+        question: { dr: 0, dc: 0, arrow: '？' },
+        star: { dr: 0, dc: 0, arrow: '★' }
+      };
+
+      const dInfo = dirMap[markDirection];
+      const lenToUse = (markDirection === 'question' || markDirection === 'star') ? 1 : markLength;
+
+      let targets = [];
+      for (let i = 0; i < lenToUse; i++) {
+        let r = row + dInfo.dr * i;
+        let c = col + dInfo.dc * i;
+        if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
+          targets.push(r * COLS + c);
+        }
+      }
+      return { targets, dInfo };
+    }
+
+    function applyMarkCreation(centerIndex, forceOverwriteSet, skipSet) {
+      const { targets, dInfo } = computeMarkTargets(centerIndex);
+      const fs = forceOverwriteSet || new Set();
+      const ss = skipSet || new Set();
+
+      targets.forEach(idx => {
+        if (ss.has(idx)) return;
+        board[idx] = {
+          type: 'arrow-mark',
+          range: 1,
+          baseType: fs.has(idx) ? null : board[idx].baseType,
+          customText: dInfo.arrow,
+          color: selectedMarkColor
+        };
+      });
+    }
+
+    // マスの装飾:既存のオブジェクト(タイプ・色・テキスト等)の属性は変更せず、
+    // 背景塗りつぶし・枠(実線/点線)だけをチェックされた項目分だけ追加する
+    function applyMasuDecoration(centerIndex) {
+      const bgEnabled = document.getElementById('deco-bg-checkbox').checked;
+      const borderEnabled = document.getElementById('deco-border-checkbox').checked;
+
+      if (!bgEnabled && !borderEnabled) return;
+
+      if (bgEnabled) {
+        board[centerIndex].decoBg = document.getElementById('deco-bg-color').value;
+      }
+      if (borderEnabled) {
+        board[centerIndex].decoBorder = document.getElementById('deco-border-style').value;
+      }
+    }
+
+    function computeBlockTargets(centerIndex) {
+      const row = Math.floor(centerIndex / COLS);
+      const col = centerIndex % COLS;
+      const length = (blockMode === 'multi') ? blockLength : 1;
+
+      let targets = [];
+      for (let i = 0; i < length; i++) {
+        let r = row;
+        let c = col;
+        if (blockOrientation === 'horizontal') {
+          c += i;
+        } else {
+          r -= i;
+        }
+        if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
+          targets.push(r * COLS + c);
+        }
+      }
+      return targets;
+    }
+
+    function applyBlockCreation(centerIndex, forceOverwriteSet, skipSet) {
+      const targets = computeBlockTargets(centerIndex);
+      const blockTypeToApply = (selectedBlockType === 'hard') ? 'wall' : 'block';
+      const fs = forceOverwriteSet || new Set();
+      const ss = skipSet || new Set();
+
+      // ソフトブロックは配置した時点の色をセルデータに個別固定保存する(以後の一括カラー変更の影響を受けない)
+      const fixedColor = (blockTypeToApply === 'block') ? getSoftBlockBgColor() : null;
+
+      targets.forEach(idx => {
+        if (ss.has(idx)) return;
+        board[idx] = { type: blockTypeToApply, range: 1, baseType: fs.has(idx) ? null : board[idx].baseType, customText: '', color: fixedColor };
+      });
+    }
+
+    // 施設種類(facilityTypeChoice)と基準点(anchorRow, anchorCol)から、
+    // 盤面の端でも切り詰めずに「本来の形」全セル分の仕様(位置・重なり判定用kind・完成時typeName・表示文字)を返す。
+    // 盤面外を含むかどうかはここでは判定せず、呼び出し側で必要に応じてフィルタする。
+    function getFacilityCellSpecs(facilityType, anchorRow, anchorCol, suffix) {
+      let specs = [];
+      if (facilityType === 'respawn') {
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            const isCenter = (dr === 0 && dc === 0);
+            specs.push({
+              r: anchorRow + dr, c: anchorCol + dc,
+              kind: isCenter ? 'respawn-center' : 'respawn-side',
+              typeName: (isCenter ? 'facility-center' : 'facility-side') + suffix,
+              customText: ''
+            });
+          }
+        }
+      } else if (facilityType === 'gate') {
+        [-1, 0, 1].forEach(dc => {
+          const isCenter = (dc === 0);
+          specs.push({
+            r: anchorRow, c: anchorCol + dc,
+            kind: isCenter ? 'gate-center' : 'gate-side',
+            typeName: (isCenter ? 'gate-center' : 'gate-side') + suffix,
+            customText: ''
+          });
+        });
+      } else if (facilityType === 'big-gate') {
+        [-2, -1, 0, 1, 2].forEach(dc => {
+          const isSide = (Math.abs(dc) === 2);
+          specs.push({
+            r: anchorRow, c: anchorCol + dc,
+            kind: isSide ? 'gate-side' : 'gate-center',
+            typeName: (isSide ? 'gate-side' : 'gate-center') + suffix,
+            customText: ''
+          });
+        });
+      } else if (facilityType === 'base') {
+        [
+          { dr: -1, dc: -1, kind: 'base-corner', typeName: 'base-corner' },
+          { dr: -1, dc: 1, kind: 'base-corner', typeName: 'base-corner' },
+          { dr: 0, dc: 0, kind: 'base-center', typeName: 'base-center' + suffix },
+          { dr: 1, dc: -1, kind: 'base-corner', typeName: 'base-corner' },
+          { dr: 1, dc: 1, kind: 'base-corner', typeName: 'base-corner' }
+        ].forEach(p => {
+          specs.push({ r: anchorRow + p.dr, c: anchorCol + p.dc, kind: p.kind, typeName: p.typeName, customText: '' });
+        });
+      } else if (facilityType === 'tower') {
+        specs.push({ r: anchorRow, c: anchorCol, kind: 'tower', typeName: 'tower' + suffix, customText: '' });
+      } else if (facilityType === 'start-point') {
+        const pattern5x5 = [
+          [0,0,0,0,0],
+          [0,1,0,1,0],
+          [0,0,2,0,0],
+          [0,1,0,1,0],
+          [0,0,0,0,0]
+        ];
+        for (let dr = -2; dr <= 2; dr++) {
+          for (let dc = -2; dc <= 2; dc++) {
+            const val = pattern5x5[dr + 2][dc + 2];
+            specs.push({
+              r: anchorRow + dr, c: anchorCol + dc,
+              kind: 'start-point',
+              typeName: (val === 1 ? 'start-point-dark' : 'start-point') + suffix,
+              customText: (val === 2) ? 'S' : ''
+            });
+          }
+        }
+      }
+      return specs;
+    }
+
+    function applyFacilityCreation(centerIndex, chosenSide) {
+      const row = Math.floor(centerIndex / COLS);
+      const col = centerIndex % COLS;
+      const suffix = (chosenSide || facilitySide) === 'ally' ? '-ally' : '-enemy';
+      const groupId = 'group_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+      const isSmallGate = (facilityTypeChoice === 'gate');
+
+      // 配置予定の各セル(位置・重なり判定用の種類kind・完成時のtypeName・表示文字)をまとめて組み立てる
+      let cellsToPlace = getFacilityCellSpecs(facilityTypeChoice, row, col, suffix);
+
+      // 盤面外を除外し、インデックスを確定
+      cellsToPlace = cellsToPlace.filter(cell => cell.r >= 0 && cell.r < ROWS && cell.c >= 0 && cell.c < COLS);
+      cellsToPlace.forEach(cell => { cell.idx = cell.r * COLS + cell.c; });
+
+      // 1. 施設同士は絶対に重ねられない(上書き確認の対象外、常にトーストで中止)
+      for (const cell of cellsToPlace) {
+        if (getFacilityBaseKind(board[cell.idx].baseType)) {
+          showToast();
+          return false;
+        }
+      }
+
+      // 2. 非施設オブジェクトとの重なりを判定。重ねられないマスがあれば上書き確認の対象にする
+      const deniedIdx = [];
+      cellsToPlace.forEach(cell => {
+        const existingRole = getObjectRole(board[cell.idx]);
+        if (!existingRole) return; // 空きマスなら問題なし
+        if (getOverlapPolicy(cell.kind, existingRole, isSmallGate) === 'deny') {
+          deniedIdx.push(cell.idx);
+        }
+      });
+
+      const placeFn = () => {
+        cellsToPlace.forEach(cell => {
+          const existingRole = getObjectRole(board[cell.idx]);
+          const policy = existingRole ? getOverlapPolicy(cell.kind, existingRole, isSmallGate) : 'allow';
+          // 盤面の端で見切れた場合でも元の形に復元できるよう、基準点(配置時にクリックした位置)と
+          // 施設種類・陣営をセルごとに記録しておく(移動時にこの情報から形を再構築する)
+          const shapeMeta = { facilityKind: facilityTypeChoice, facilitySuffix: suffix, anchorR: row, anchorC: col };
+          if (existingRole && policy === 'allow') {
+            // 重ねられる場合:既存オブジェクトはそのまま残し、土台(baseType)だけを新しい施設に差し替える
+            board[cell.idx] = { ...board[cell.idx], baseType: cell.typeName, groupId, ...shapeMeta };
+          } else {
+            // 空きマス、または上書き確定後:既存の内容を消して施設セルを新規作成する
+            board[cell.idx] = { type: cell.typeName, range: 1, baseType: cell.typeName, customText: cell.customText, groupId, ...shapeMeta };
+          }
+        });
+      };
+
+      if (deniedIdx.length > 0) {
+        pendingOverlapAction = () => {
+          placeFn();
+          localStorage.setItem('bombergirl-board', JSON.stringify(board));
+          saveHistory();
+          render();
+        };
+        showOverlapConfirm();
+        return false;
+      }
+
+      placeFn();
+      return true;
+    }
+
+    function removeCellAndGroup(i) {
+      const cell = board[i];
+      const linkBlast = document.getElementById('link-bomb-blast-checkbox').checked;
+
+      // ボムと爆風の紐付け削除
+      if (linkBlast && (cell.type === 'bomb-ally' || cell.type === 'bomb-enemy')) {
+        const blastType = cell.type === 'bomb-ally' ? 'blast-ally' : 'blast-enemy';
+        board.forEach((c, idx) => {
+          if (c.type === cell.type || c.type === blastType) {
+            if (board[idx].baseType) {
+              board[idx] = { type: board[idx].baseType, range: 1, baseType: board[idx].baseType, customText: '' };
+            } else {
+              board[idx] = { type: 'empty', range: 1, baseType: null, customText: '' };
+            }
+          }
+        });
+        return;
+      }
+
+      // 施設グループの一括削除
+      if (cell.groupId) {
+        const targetGroupId = cell.groupId;
+        board.forEach((c, idx) => {
+          if (c.groupId === targetGroupId) {
+            board[idx] = { type: 'empty', range: 1, baseType: null, customText: '' };
+          }
+        });
+        return;
+      }
+
+      // 通常消去
+      if (board[i].baseType) {
+        board[i] = { type: board[i].baseType, range: 1, baseType: board[i].baseType, customText: '' };
+      } else {
+        board[i] = { type: 'empty', range: 1, baseType: null, customText: '' };
+      }
+    }
+
+    // targets(このアクションで書き込もうとしているマスのインデックス配列)について、
+    // すでにあるオブジェクト(施設)との重なり可否を判定し、
+    //  ・全マス可 → そのままonProceedを実行(通常どおり即時配置)
+    //  ・不可なマスがあり、ドラッグ中 → 確認なしで黙ってスキップ(件数だけ記録)
+    //  ・不可なマスがあり、単発クリック → 上書き確認ダイアログを出し、「上書きして設置」で確定した時だけ実行
+    // onProceed(forceOverwriteSet, skipSet) の forceOverwriteSet には「重ねられないため上書き確定したマス」、
+    // skipSetには「スタート地点への例外処理で黙って配置を見送るマス」のインデックスが入る
+    //
+    // 例外:スタート地点は、クリック(操作の起点)したマスそのものではなく、
+    // 複数マスにまたがる配置(ブロックの連続配置やマークの直線配置など)が結果的にスタート地点へ差し掛かった場合のみ、
+    // ダイアログを出さずそのマスだけ黙って配置をスキップする(その他の置けるマスへの配置はそのまま行う)
+    function resolveOverlapAndProceed(targets, role, isDragging, onProceed, originIdx) {
+      const deniedIdx = [];
+      const skipIdx = [];
+      for (const idx of targets) {
+        const existingKind = getFacilityBaseKind(board[idx].baseType);
+        if (!existingKind) continue;
+        const isSmallGate = isSmallGateGroup(board[idx].groupId);
+        const policy = getOverlapPolicy(existingKind, role, isSmallGate);
+        if (policy !== 'deny') continue;
+        if (existingKind === 'start-point' && idx !== originIdx) {
+          skipIdx.push(idx);
+        } else {
+          deniedIdx.push(idx);
+        }
+      }
+
+      if (deniedIdx.length === 0) {
+        onProceed(new Set(), new Set(skipIdx));
+        return true;
+      }
+
+      if (isDragging) {
+        dragSkippedCount += deniedIdx.length;
+        return false;
+      }
+
+      pendingOverlapAction = () => {
+        onProceed(new Set(deniedIdx), new Set(skipIdx));
+        localStorage.setItem('bombergirl-board', JSON.stringify(board));
+        saveHistory();
+        render();
+      };
+      showOverlapConfirm();
+      return false;
+    }
+
+    function handleCellAction(i, cellType, isDragging) {
+      const toolToUse = isEKeyPressed ? 'empty' : currentTool;
+      const autoBlast = document.getElementById('auto-blast-checkbox').checked;
+      const blastOnly = document.getElementById('blast-only-checkbox').checked;
+
+      if (toolToUse === 'move') {
+        if (moveSourceIdx === null) {
+          if (board[i].type !== 'empty') {
+            moveSourceIdx = i;
+          }
+        } else {
+          moveCellData(moveSourceIdx, i);
+          moveSourceIdx = null;
+          saveHistory();
+        }
+        return true;
+      }
+
+      if (toolToUse === 'char' && board[i].type === 'character' && board[i].isGeneric && isGenericChar && board[i].charRole === selectedCharRole) {
+        board[i].rotateState = (board[i].rotateState + 1) % 3;
+        return true;
+      }
+
+      if (toolToUse === 'bomb') {
+        const bombType = bombSide === 'ally' ? 'bomb-ally' : 'bomb-enemy';
+
+        if (blastOnly) {
+          applyBlastFrom(i, defaultBombRange, bombSide, true);
+          return true;
+        }
+        return resolveOverlapAndProceed([i], 'bomb', isDragging, (forceSet) => {
+          board[i] = { type: bombType, range: defaultBombRange, baseType: forceSet.has(i) ? null : board[i].baseType, customText: '' };
+          if (autoBlast) {
+            applyBlastFrom(i, defaultBombRange, bombSide, false);
+          }
+        }, i);
+      } else if (toolToUse === 'mark') {
+        if (markDirection === 'decorate') {
+          applyMasuDecoration(i);
+          return true;
+        } else {
+          const targets = computeMarkTargets(i).targets;
+          return resolveOverlapAndProceed(targets, 'mark', isDragging, (forceSet, skipSet) => applyMarkCreation(i, forceSet, skipSet), i);
+        }
+      } else if (toolToUse === 'char') {
+        return resolveOverlapAndProceed([i], 'char', isDragging, (forceSet) => {
+          board[i] = {
+            type: 'character',
+            range: 1,
+            baseType: forceSet.has(i) ? null : board[i].baseType,
+            customText: selectedCharText,
+            isGeneric: isGenericChar,
+            charRole: selectedCharRole,
+            rotateState: 0
+          };
+        }, i);
+      } else if (toolToUse === 'block') {
+        const targets = computeBlockTargets(i);
+        const role = (selectedBlockType === 'hard') ? 'hardBlock' : 'softBlock';
+        return resolveOverlapAndProceed(targets, role, isDragging, (forceSet, skipSet) => applyBlockCreation(i, forceSet, skipSet), i);
+      } else if (toolToUse === 'facility') {
+        return applyFacilityCreation(i);
+      } else if (toolToUse === 'empty') {
+        removeCellAndGroup(i);
+      } else if (toolToUse === 'item') {
+        return resolveOverlapAndProceed([i], 'item', isDragging, (forceSet) => {
+          board[i] = { type: toolToUse, range: 1, baseType: forceSet.has(i) ? null : board[i].baseType, customText: '' };
+        }, i);
+      } else {
+        board[i] = { type: toolToUse, range: 1, baseType: board[i].baseType, customText: '' };
+      }
+      return true;
+    }
+
+    function render() {
+      const boardEl = document.getElementById('board');
+      boardEl.innerHTML = '';
+
+      const autoFill = document.getElementById('auto-fill-checkbox').checked;
+      const isDragMoveEnabled = document.getElementById('drag-move-checkbox').checked;
+      const showBlockSymbol = document.getElementById('show-block-symbol-checkbox').checked;
+      const softBlockBorder = document.getElementById('soft-block-border-checkbox').checked;
+
+      // リスポーン地点のグループ毎のオーバーレイ描画準備
+      const respawnGroups = {};
+      // スタート地点(5x5)のグループ毎のオーバーレイ描画準備
+      const startPointGroups = {};
+
+      board.forEach((cellData, i) => {
+        const div = document.createElement('div');
+        const cellType = cellData.type;
+        const effectiveBaseType = cellData.baseType;
+
+        let isBuried = false;
+        let displayColor = colors[cellType] || '#f5f5f3';
+        let displayTextHtml = toolNames[cellType] || '';
+        let fontColor = (cellType.startsWith('tower') || cellType.startsWith('base-center') || cellType.startsWith('bomb') || cellType === 'wall' || cellType.startsWith('gate-extradark')) ? 'white' : '#2c2c2a';
+
+        if (cellType === 'block') {
+          // 配置時点で個別固定保存された色があればそれを優先(なければ現行選択色にフォールバック)
+          displayColor = cellData.color || getSoftBlockBgColor();
+          div.style.backgroundImage = `radial-gradient(square, transparent 20%, ${displayColor} 90%)`;
+          if (!showBlockSymbol) {
+            displayTextHtml = '';
+          }
+        } else {
+          div.style.backgroundImage = 'none';
+        }
+
+        if (cellType === 'start-point-ally' || cellType === 'start-point-enemy' || cellType === 'start-point-dark-ally' || cellType === 'start-point-dark-enemy') {
+          displayTextHtml = cellData.customText || '';
+        }
+
+        if (cellType === 'arrow-mark') {
+          displayTextHtml = cellData.customText || '';
+          if (cellData.color) fontColor = cellData.color;
+        } else if (cellType === 'character') {
+          if (cellData.isGeneric && cellData.charRole && genericRoleConfig[cellData.charRole]) {
+            const conf = genericRoleConfig[cellData.charRole];
+            displayColor = conf.bg;
+            fontColor = 'white';
+
+            const sym = useTextSymbolMode ? conf.text : conf.emoji;
+            const rState = cellData.rotateState || 0;
+
+            if (rState === 0) {
+              displayTextHtml = sym;
+            } else if (rState === 1) {
+              displayTextHtml = `👤<sub style="font-size: 8px; line-height:1; vertical-align: sub;">${sym}</sub>`;
+            } else if (rState === 2) {
+              displayTextHtml = `${sym}<sub style="font-size: 8px; line-height:1; vertical-align: sub;">👤</sub>`;
+            }
+          } else {
+            displayTextHtml = cellData.customText || '';
+          }
+        }
+
+        if (effectiveBaseType && colors[effectiveBaseType]) {
+          if (cellType !== 'empty' && cellType !== 'block' && cellType !== 'wall' && cellType !== 'character') {
+            displayColor = colors[effectiveBaseType];
+          }
+        }
+
+        // マークが施設に重なった場合の表示優先(施設側のシンボルを優先するか、マーク側を優先するか)
+        if (cellType === 'arrow-mark' && effectiveBaseType) {
+          const facilityKind = getFacilityBaseKind(effectiveBaseType);
+          if (facilityKind && MARK_DISPLAY_WINNER[facilityKind] === 'facility') {
+            displayTextHtml = toolNames[effectiveBaseType] || '';
+            fontColor = (effectiveBaseType.startsWith('tower') || effectiveBaseType.startsWith('base-center') || effectiveBaseType.startsWith('gate-side') || effectiveBaseType.startsWith('gate-extradark')) ? 'white' : '#2c2c2a';
+          } else if (facilityKind) {
+            displayColor = colors['arrow-mark'] || displayColor;
+            if (cellData.color) fontColor = cellData.color;
+          }
+        }
+
+        if (autoFill && effectiveBaseType && (effectiveBaseType.startsWith('facility-center') || effectiveBaseType.startsWith('facility-side'))) {
+          if (checkCellBuriedStatus(i, board)) {
+            if (cellType !== 'block' && cellType !== 'wall') {
+              isBuried = true;
+              displayTextHtml = '';
+              displayColor = '#9a9a94';
+            }
+          }
+        }
+
+        // リスポーン地点のグループトラッキング
+        if (cellData.groupId && (effectiveBaseType && (effectiveBaseType.startsWith('facility-center') || effectiveBaseType.startsWith('facility-side')))) {
+          const r = Math.floor(i / COLS);
+          const c = i % COLS;
+          if (!respawnGroups[cellData.groupId]) {
+            respawnGroups[cellData.groupId] = { minR: r, maxR: r, minC: c, maxC: c, side: effectiveBaseType.endsWith('-ally') ? 'ally' : 'enemy' };
+          } else {
+            respawnGroups[cellData.groupId].minR = Math.min(respawnGroups[cellData.groupId].minR, r);
+            respawnGroups[cellData.groupId].maxR = Math.max(respawnGroups[cellData.groupId].maxR, r);
+            respawnGroups[cellData.groupId].minC = Math.min(respawnGroups[cellData.groupId].minC, c);
+            respawnGroups[cellData.groupId].maxC = Math.max(respawnGroups[cellData.groupId].maxC, c);
+          }
+        }
+
+        // スタート地点(5x5)のグループトラッキング(全体を単一枠で囲むため)
+        if (cellData.groupId && (effectiveBaseType && effectiveBaseType.startsWith('start-point'))) {
+          const r = Math.floor(i / COLS);
+          const c = i % COLS;
+          if (!startPointGroups[cellData.groupId]) {
+            startPointGroups[cellData.groupId] = { minR: r, maxR: r, minC: c, maxC: c };
+          } else {
+            startPointGroups[cellData.groupId].minR = Math.min(startPointGroups[cellData.groupId].minR, r);
+            startPointGroups[cellData.groupId].maxR = Math.max(startPointGroups[cellData.groupId].maxR, r);
+            startPointGroups[cellData.groupId].minC = Math.min(startPointGroups[cellData.groupId].minC, c);
+            startPointGroups[cellData.groupId].maxC = Math.max(startPointGroups[cellData.groupId].maxC, c);
+          }
+        }
+
+        div.className = 'cell ' + cellType + (isBuried ? ' buried' : '') + (moveSourceIdx === i ? ' selected-source' : '') + (cellType === 'block' && softBlockBorder ? ' soft-block-bordered' : '');
+        div.style.backgroundColor = displayColor;
+        div.style.color = fontColor;
+        div.innerHTML = displayTextHtml;
+
+        // マスの装飾(既存オブジェクトの属性は変えず、上から色や枠を重ねる)
+        if (cellData.decoBg) {
+          div.style.boxShadow = `inset 0 0 0 100px ${hexToRgba(cellData.decoBg, 0.45)}`;
+        }
+        if (cellData.decoBorder) {
+          div.style.outline = (cellData.decoBorder === 'dashed' ? '2px dashed ' : '2px solid ') + 'rgba(0,0,0,0.6)';
+          div.style.outlineOffset = '-2px';
+        }
+
+        if (isDragMoveEnabled && cellType !== 'empty') {
+          div.draggable = true;
+        }
+
+        if (isDragMoveEnabled) {
+          div.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', i.toString());
+          });
+
+          div.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            div.classList.add('drag-over');
+          });
+
+          div.addEventListener('dragleave', () => {
+            div.classList.remove('drag-over');
+          });
+
+          div.addEventListener('drop', (e) => {
+            e.preventDefault();
+            div.classList.remove('drag-over');
+            const srcIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+            if (!isNaN(srcIdx)) {
+              if (moveCellData(srcIdx, i)) {
+                localStorage.setItem('bombergirl-board', JSON.stringify(board));
+                saveHistory();
+                render();
+              }
+            }
+          });
+        }
+
+        if (cellType.startsWith('bomb')) {
+          div.title = `火力: ${cellData.range}`;
+        }
+
+        div.dataset.idx = i;
+
+        div.addEventListener('mousedown', (e) => {
+          if (e.button === 2) {
+            e.preventDefault();
+            removeCellAndGroup(i);
+            localStorage.setItem('bombergirl-board', JSON.stringify(board));
+            saveHistory();
+            render();
+            return;
+          }
+
+          if (e.button === 0) {
+            if (isDragMoveEnabled) {
+              // ドラッグで移動が有効な場合は、ここで配置処理を行わずネイティブドラッグ(dragstart/drop)に任せる
+              isMouseDown = true;
+              return;
+            }
+            e.preventDefault();
+            isMouseDown = true;
+
+            const changed = handleCellAction(i, cellType, false);
+            if (changed) {
+              localStorage.setItem('bombergirl-board', JSON.stringify(board));
+              render();
+            }
+          }
+        });
+
+        div.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+        });
+
+        div.addEventListener('mouseenter', () => {
+          if (!isMouseDown) return;
+          const dragEnabled = document.getElementById('drag-draw-checkbox').checked;
+          if (!dragEnabled || currentTool === 'move') return;
+
+          const changed = handleCellAction(i, cellType, true);
+          if (changed) {
+            localStorage.setItem('bombergirl-board', JSON.stringify(board));
+            render();
+          }
+        });
+
+        // スマホ:タップの最初の1マス目(ドラッグ移動が有効な場合はネイティブドラッグに任せるため何もしない)
+        div.addEventListener('touchstart', (e) => {
+          if (isDragMoveEnabled) return;
+          e.preventDefault();
+          isMouseDown = true;
+          lastTouchedIdx = i;
+
+          const changed = handleCellAction(i, cellType, false);
+          if (changed) {
+            localStorage.setItem('bombergirl-board', JSON.stringify(board));
+            render();
+          }
+        }, { passive: false });
+
+        boardEl.appendChild(div);
+      });
+
+      // リスポーン地点の四角い枠内にピッタリ円が収まるオーバーレイを描画
+      // (セルサイズを固定値で仮定せず、実際に描画されたセルの位置・サイズから算出する。
+      //  画面幅に応じてセルサイズが変わっても位置がずれないようにするため)
+      Object.keys(respawnGroups).forEach(gId => {
+        const g = respawnGroups[gId];
+        const topLeftCell = boardEl.children[g.minR * COLS + g.minC];
+        const bottomRightCell = boardEl.children[g.maxR * COLS + g.maxC];
+        if (!topLeftCell || !bottomRightCell) return;
+
+        const left = topLeftCell.offsetLeft;
+        const top = topLeftCell.offsetTop;
+        const width = (bottomRightCell.offsetLeft + bottomRightCell.offsetWidth) - left;
+        const height = (bottomRightCell.offsetTop + bottomRightCell.offsetHeight) - top;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'respawn-group-overlay';
+        overlay.style.left = `${left}px`;
+        overlay.style.top = `${top}px`;
+        overlay.style.width = `${width}px`;
+        overlay.style.height = `${height}px`;
+        overlay.style.color = g.side === 'ally' ? '#185fa5' : '#a32d2d';
+
+        boardEl.appendChild(overlay);
+      });
+
+      // スタート地点(5x5)の全体を囲む単一枠オーバーレイを描画(同様に実測ベース)
+      Object.keys(startPointGroups).forEach(gId => {
+        const g = startPointGroups[gId];
+        const topLeftCell = boardEl.children[g.minR * COLS + g.minC];
+        const bottomRightCell = boardEl.children[g.maxR * COLS + g.maxC];
+        if (!topLeftCell || !bottomRightCell) return;
+
+        const left = topLeftCell.offsetLeft;
+        const top = topLeftCell.offsetTop;
+        const width = (bottomRightCell.offsetLeft + bottomRightCell.offsetWidth) - left;
+        const height = (bottomRightCell.offsetTop + bottomRightCell.offsetHeight) - top;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'startpoint-group-overlay';
+        overlay.style.left = `${left}px`;
+        overlay.style.top = `${top}px`;
+        overlay.style.width = `${width}px`;
+        overlay.style.height = `${height}px`;
+
+        boardEl.appendChild(overlay);
+      });
+
+      document.getElementById('block-len-val').textContent = blockLength;
+      document.getElementById('block-len-control').style.opacity = (blockMode === 'multi') ? '1' : '0.4';
+      document.getElementById('block-len-control').style.pointerEvents = (blockMode === 'multi') ? 'auto' : 'none';
+      document.getElementById('facility-side-btn').textContent = facilitySide === 'ally' ? '味方' : '敵';
+      document.getElementById('bomb-side-btn').textContent = bombSide === 'ally' ? '味方' : '敵';
+      document.getElementById('mark-len-val').textContent = markLength;
+
+      const markLenRow = document.getElementById('mark-len-row');
+      const markColorRow = document.getElementById('mark-color-row');
+      const decoOptionsRow = document.getElementById('deco-options-row');
+      const decoHintRow = document.getElementById('deco-hint-row');
+
+      if (markDirection === 'decorate') {
+        // マスの装飾モード:矢印用のカラー・長さ設定は不要、装飾用オプションを表示
+        markLenRow.style.display = 'none';
+        markColorRow.style.display = 'none';
+        decoOptionsRow.style.display = 'flex';
+        decoHintRow.style.display = 'flex';
+      } else {
+        markLenRow.style.display = 'flex';
+        markColorRow.style.display = 'flex';
+        decoOptionsRow.style.display = 'none';
+        decoHintRow.style.display = 'none';
+
+        if (markDirection === 'question' || markDirection === 'star') {
+          markLenRow.style.opacity = '0.4';
+          markLenRow.style.pointerEvents = 'none';
+        } else {
+          markLenRow.style.opacity = '1';
+          markLenRow.style.pointerEvents = 'auto';
+        }
+      }
+    }
+
+    function handleDrawEnd() {
+      if (isMouseDown) {
+        isMouseDown = false;
+        lastTouchedIdx = null;
+        if (currentTool !== 'move') {
+          saveHistory();
+        }
+        if (dragSkippedCount > 0) {
+          showToast('⚠️一部のマスは重ねられなかったためスキップしました');
+          dragSkippedCount = 0;
+        }
+      }
+    }
+
+    document.addEventListener('mouseup', handleDrawEnd);
+    document.addEventListener('touchend', handleDrawEnd);
+    document.addEventListener('touchcancel', handleDrawEnd);
+
+    // スマホ:指でなぞる連続描画(「ドラッグで連続描画」がオンの場合のみ)。
+    // touchmoveは最初に触れた要素上でしか発火しないため、elementFromPointで
+    // 実際に指の下にあるマスを都度調べて処理する。
+    let lastTouchedIdx = null;
+    document.addEventListener('touchmove', (e) => {
+      if (!isMouseDown) return;
+      const dragEnabled = document.getElementById('drag-draw-checkbox').checked;
+      const isDragMoveEnabled = document.getElementById('drag-move-checkbox').checked;
+      if (!dragEnabled || isDragMoveEnabled || currentTool === 'move') return;
+
+      const touch = e.touches[0];
+      if (!touch) return;
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      const cellEl = el && el.closest ? el.closest('.cell') : null;
+      if (!cellEl || cellEl.dataset.idx === undefined) return;
+
+      const idx = parseInt(cellEl.dataset.idx, 10);
+      if (isNaN(idx) || idx === lastTouchedIdx) return;
+      lastTouchedIdx = idx;
+
+      // 指でなぞっている間はページ全体のスクロールを止める(このマスは処理対象のときだけ)
+      e.preventDefault();
+
+      const changed = handleCellAction(idx, board[idx].type, true);
+      if (changed) {
+        localStorage.setItem('bombergirl-board', JSON.stringify(board));
+        render();
+      }
+    }, { passive: false });
+
+    function resetCharSubPanel() {
+      selectedCharCat = null;
+      selectedCharRole = null;
+      isGenericChar = false;
+      selectedCharText = '人';
+
+      document.querySelectorAll('#char-sub-panel [data-char-cat]').forEach(b => b.classList.remove('selected'));
+      document.querySelectorAll('#char-sub-panel [data-char-role]').forEach(b => b.classList.remove('selected'));
+      document.querySelectorAll('#char-sub-panel .char-list-group .sub-btn').forEach(b => b.classList.remove('selected'));
+
+      const roleRow = document.getElementById('char-role-row');
+      if (roleRow) roleRow.style.display = 'none';
+      document.querySelectorAll('.char-list-group').forEach(g => g.style.display = 'none');
+    }
+
+    document.querySelectorAll('.tool-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        const previousTool = currentTool;
+        currentTool = btn.dataset.tool;
+
+        if (previousTool === 'char' && currentTool !== 'char') {
+          resetCharSubPanel();
+        }
+
+        moveSourceIdx = null;
+
+        const bombPanel = document.getElementById('bomb-sub-panel');
+        const markPanel = document.getElementById('mark-sub-panel');
+        const blockPanel = document.getElementById('block-sub-panel');
+        const charPanel = document.getElementById('char-sub-panel');
+        const facilityPanel = document.getElementById('facility-sub-panel');
+
+        bombPanel.classList.remove('active');
+        markPanel.classList.remove('active');
+        blockPanel.classList.remove('active');
+        charPanel.classList.remove('active');
+        facilityPanel.classList.remove('active');
+
+        if (currentTool === 'bomb') bombPanel.classList.add('active');
+        else if (currentTool === 'mark') markPanel.classList.add('active');
+        else if (currentTool === 'block') blockPanel.classList.add('active');
+        else if (currentTool === 'char') charPanel.classList.add('active');
+        else if (currentTool === 'facility') facilityPanel.classList.add('active');
+
+        render();
+      });
+    });
+
+    document.querySelectorAll('#block-sub-panel [data-block-type]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('#block-sub-panel [data-block-type]').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedBlockType = btn.dataset.blockType;
+
+        const softOptions = document.getElementById('soft-block-options');
+        if (selectedBlockType === 'soft') {
+          softOptions.style.display = 'flex';
+        } else {
+          softOptions.style.display = 'none';
+        }
+      });
+    });
+
+    document.querySelectorAll('#soft-block-options .color-swatch').forEach(swatch => {
+      swatch.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('#soft-block-options .color-swatch').forEach(s => s.classList.remove('selected'));
+        swatch.classList.add('selected');
+        selectedBlockColor = swatch.dataset.color;
+
+        const customPicker = document.getElementById('custom-block-color');
+        if (selectedBlockColor === 'custom') {
+          customPicker.style.display = 'inline-block';
+          customPicker.click();
+        } else {
+          customPicker.style.display = 'none';
+        }
+        render();
+      });
+    });
+
+    document.getElementById('custom-block-color').addEventListener('input', (e) => {
+      customBlockHex = e.target.value;
+      render();
+    });
+
+    document.getElementById('show-block-symbol-checkbox').addEventListener('change', () => { render(); });
+    document.getElementById('soft-block-border-checkbox').addEventListener('change', () => { render(); });
+
+    document.querySelectorAll('#char-sub-panel [data-char-cat]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('#char-sub-panel [data-char-cat]').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedCharCat = btn.dataset.charCat;
+
+        const roleRow = document.getElementById('char-role-row');
+        const allListGroups = document.querySelectorAll('.char-list-group');
+
+        if (selectedCharCat === 'girl') {
+          roleRow.style.display = 'flex';
+        } else {
+          roleRow.style.display = 'none';
+          allListGroups.forEach(g => g.style.display = 'none');
+          selectedCharRole = null;
+          isGenericChar = false;
+          if (selectedCharCat === 'supporter') selectedCharText = 'サ';
+          else if (selectedCharCat === 'other') selectedCharText = '他';
+        }
+      });
+    });
+
+    document.querySelectorAll('#char-sub-panel [data-char-role]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('#char-sub-panel [data-char-role]').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedCharRole = btn.dataset.charRole;
+
+        const allListGroups = document.querySelectorAll('.char-list-group');
+        allListGroups.forEach(g => g.style.display = 'none');
+
+        const activeGroup = document.getElementById(`char-list-${selectedCharRole}`);
+        if (activeGroup) {
+          activeGroup.style.display = 'flex';
+        }
+      });
+    });
+
+    document.querySelectorAll('#char-sub-panel .char-list-group .sub-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('#char-sub-panel .char-list-group .sub-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+
+        if (btn.dataset.charType === 'generic') {
+          isGenericChar = true;
+          selectedCharText = '';
+        } else {
+          isGenericChar = false;
+          selectedCharText = btn.dataset.charName;
+        }
+      });
+    });
+
+    document.getElementById('char-style-toggle-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      useTextSymbolMode = !useTextSymbolMode;
+      render();
+    });
+
+    document.querySelectorAll('#bomb-range-buttons .sub-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('#bomb-range-buttons .sub-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        defaultBombRange = parseInt(btn.dataset.range, 10);
+      });
+    });
+
+    document.getElementById('bomb-side-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      bombSide = (bombSide === 'ally') ? 'enemy' : 'ally';
+      render();
+    });
+
+    document.querySelectorAll('#mark-sub-panel [data-mark-dir]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('#mark-sub-panel [data-mark-dir]').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        markDirection = btn.dataset.markDir;
+        render();
+      });
+    });
+
+    document.querySelectorAll('#mark-sub-panel [data-mark-color]').forEach(swatch => {
+      swatch.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('#mark-sub-panel [data-mark-color]').forEach(s => s.classList.remove('selected'));
+        swatch.classList.add('selected');
+        selectedMarkColor = swatch.dataset.markColor;
+      });
+    });
+
+    document.getElementById('mark-len-minus').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (markLength > 1) {
+        markLength--;
+        render();
+      }
+    });
+
+    document.getElementById('mark-len-plus').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (markLength < 14) {
+        markLength++;
+        render();
+      }
+    });
+
+    document.querySelectorAll('#facility-sub-panel [data-facility]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('#facility-sub-panel [data-facility]').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        facilityTypeChoice = btn.dataset.facility;
+      });
+    });
+
+    document.querySelectorAll('input[name="block-mode"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        blockMode = e.target.value;
+        render();
+      });
+    });
+
+    document.querySelectorAll('input[name="block-orient"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        blockOrientation = e.target.value;
+      });
+    });
+
+    document.getElementById('block-len-minus').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (blockLength > 2) {
+        blockLength--;
+        render();
+      }
+    });
+
+    document.getElementById('block-len-plus').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (blockLength < 5) {
+        blockLength++;
+        render();
+      }
+    });
+
+    document.getElementById('facility-side-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      facilitySide = (facilitySide === 'ally') ? 'enemy' : 'ally';
+      render();
+    });
+
+    document.getElementById('auto-fill-checkbox').addEventListener('change', () => {
+      render();
+    });
+
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsModal = document.getElementById('settings-modal');
+    const modalCloseBtn = document.getElementById('modal-close-btn');
+
+    settingsBtn.addEventListener('click', () => {
+      settingsModal.classList.add('open');
+    });
+
+    modalCloseBtn.addEventListener('click', () => {
+      settingsModal.classList.remove('open');
+    });
+
+    document.getElementById('overlap-cancel-btn').addEventListener('click', () => {
+      closeOverlapConfirm();
+    });
+
+    document.getElementById('overlap-overwrite-btn').addEventListener('click', () => {
+      const action = pendingOverlapAction;
+      closeOverlapConfirm();
+      if (action) action();
+    });
+
+    settingsModal.addEventListener('click', (e) => {
+      if (e.target === settingsModal) {
+        settingsModal.classList.remove('open');
+      }
+    });
+
+    document.getElementById('dark-mode-checkbox').addEventListener('change', (e) => {
+      if (e.target.checked) {
+        document.body.classList.add('dark-mode');
+        localStorage.setItem('bombergirl-darkmode', 'true');
+      } else {
+        document.body.classList.remove('dark-mode');
+        localStorage.setItem('bombergirl-darkmode', 'false');
+      }
+    });
+
+    if (localStorage.getItem('bombergirl-darkmode') === 'true') {
+      document.body.classList.add('dark-mode');
+      document.getElementById('dark-mode-checkbox').checked = true;
+    }
+
+    document.getElementById('drag-move-checkbox').addEventListener('change', (e) => {
+      const drawCheckbox = document.getElementById('drag-draw-checkbox');
+      drawCheckbox.disabled = e.target.checked;
+      if (e.target.checked) drawCheckbox.checked = false;
+      render();
+    });
+
+    document.getElementById('drag-draw-checkbox').addEventListener('change', (e) => {
+      const moveCheckbox = document.getElementById('drag-move-checkbox');
+      moveCheckbox.disabled = e.target.checked;
+      if (e.target.checked) moveCheckbox.checked = false;
+      render();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyE' && !isEKeyPressed && document.activeElement.tagName !== 'TEXTAREA') {
+        isEKeyPressed = true;
+      }
+
+      if (e.code === 'Space' && currentTool === 'block') {
+        e.preventDefault();
+        blockOrientation = (blockOrientation === 'horizontal') ? 'vertical' : 'horizontal';
+        document.querySelectorAll('input[name="block-orient"]').forEach(r => {
+          r.checked = (r.value === blockOrientation);
+        });
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+      }
+    });
+
+    document.addEventListener('keyup', (e) => {
+      if (e.code === 'KeyE') {
+        isEKeyPressed = false;
+      }
+    });
+
+    document.getElementById('clear-btn').addEventListener('click', () => {
+      board = createEmptyBoard();
+      localStorage.setItem('bombergirl-board', JSON.stringify(board));
+      saveHistory();
+      render();
+    });
+
+    document.getElementById('download-btn').addEventListener('click', () => {
+      const json = JSON.stringify(board, null, 2);
+      const a = document.createElement('a');
+      a.href = 'data:text/plain,' + encodeURIComponent(json);
+      a.download = 'bombergirl-' + new Date().getTime() + '.json';
+      a.click();
+    });
+
+    function applyTemplate(pattern) {
+      board = createEmptyBoard();
+
+      if (pattern === 'base') {
+        const patternRows = [
+          '001101100',
+          '010000010',
+          '100000001',
+          '100000001',
+          '100000001',
+          '100000001',
+          '100000001',
+          '010000010',
+          '001101100'
+        ];
+
+        const startRow = 3;
+        const startCol = 3;
+
+        patternRows.forEach((row, y) => {
+          for (let x = 0; x < row.length; x++) {
+            if (row[x] === '1') {
+              board[(startRow + y) * COLS + (startCol + x)].type = 'wall';
+            }
+          }
+        });
+
+        const prevFacilityType = facilityTypeChoice;
+        facilityTypeChoice = 'base';
+        applyFacilityCreation(7 * COLS + 7, 'ally');
+        facilityTypeChoice = prevFacilityType;
+      }
+
+      localStorage.setItem('bombergirl-board', JSON.stringify(board));
+      saveHistory();
+      render();
+    }
+
+    document.getElementById('template-base').addEventListener('click', () => {
+      applyTemplate('base');
+    });
+
+    document.getElementById('undo-btn').addEventListener('click', undo);
+    document.getElementById('redo-btn').addEventListener('click', redo);
+
+    const memoToggleBtn = document.getElementById('memo-toggle-btn');
+    const memoTextarea = document.getElementById('memo-textarea');
+    const savedMemo = localStorage.getItem('bombergirl-memo');
+    if (savedMemo) memoTextarea.value = savedMemo;
+
+    memoToggleBtn.addEventListener('click', () => {
+      memoTextarea.classList.toggle('open');
+    });
+
+    memoTextarea.addEventListener('input', () => {
+      localStorage.setItem('bombergirl-memo', memoTextarea.value);
+    });
+
+    // ツールごとのヘルプ「？」アイコンの設置(PCホバー / スマホは？アイコンタップ)
+    const toolHelpTexts = {
+      empty: '選択したマスを消去します。右クリック(またはEキー押下中のクリック)でも消去できます。',
+      move: '移動したいマスをタップし、続けて移動先をタップすると入れ替わります。環境設定でドラッグ移動も有効化できます。',
+      block: 'ソフトブロック・ハードブロックを配置します。直線配置(長さ2〜5)、記号表示、ソフトブロックの色や枠線を設定できます。ハードブロックはマーク以外の全オブジェクトと重ねられません(ゲートの内側マスのみ例外)。',
+      bomb: 'ボムを配置し、選択した火力に応じて自動で爆風を展開します。壁の無視や誘爆オフなどの設定も可能です。',
+      mark: '矢印や記号を配置します。「マスの装飾」を選ぶと、既存のオブジェクトを保ったままマスに色や枠を付けられます。',
+      char: 'キャラクターやサポーターなどのアイコンを配置します。',
+      item: 'アイテムを配置します。',
+      facility: 'ベース・ゲート・大ゲート・スタート地点・リスポーン地点などの施設を配置します。施設同士は重ねられません。ゲート・大ゲートは内側マスのみ他のオブジェクトと重ねられ、外側マスは重ねられません。他の重なりルールに反する配置をした場合は上書き確認が表示されます。'
+    };
+
+    document.querySelectorAll('#toolbar .tool-btn[data-tool]').forEach(btn => {
+      const toolKey = btn.dataset.tool;
+      const helpText = toolHelpTexts[toolKey];
+      if (!helpText) return;
+
+      const icon = document.createElement('span');
+      icon.className = 'help-icon';
+      icon.textContent = '？';
+
+      const tooltip = document.createElement('div');
+      tooltip.className = 'help-tooltip';
+      tooltip.textContent = helpText;
+
+      btn.appendChild(icon);
+      btn.appendChild(tooltip);
+
+      // PC: ホバーで表示
+      icon.addEventListener('mouseenter', () => tooltip.classList.add('show'));
+      icon.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
+
+      // スマホ: 「？」アイコン自体のタップで表示/非表示(ツール選択とは独立)
+      icon.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isShown = tooltip.classList.contains('show');
+        document.querySelectorAll('.help-tooltip.show').forEach(t => t.classList.remove('show'));
+        if (!isShown) tooltip.classList.add('show');
+      });
+    });
+
+    // ヘルプアイコン・ツールチップ以外をタップした際は開いているツールチップを閉じる
+    document.addEventListener('click', (e) => {
+      if (!e.target.classList.contains('help-icon')) {
+        document.querySelectorAll('.help-tooltip.show').forEach(t => t.classList.remove('show'));
+      }
+    });
+
+    // モード切替(エディター/プレビュー/データ)。未実装のプレビュー・データモードは
+    // 作業エリア(#editor-content)のみを「工事中」表示にし、ヘッダーのモード切替は常に操作可能。
+    document.getElementById('app-mode-select').addEventListener('change', (e) => {
+      const overlay = document.getElementById('mode-construction-overlay');
+      if (e.target.value === 'editor') {
+        overlay.classList.remove('show');
+      } else {
+        overlay.classList.add('show');
+      }
+    });
+
+    render();
+    updateHistoryButtons();
+  </script>
+</body>
+</html>
